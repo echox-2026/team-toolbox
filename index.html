@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="EchoX 项目组工具库，集中展示成员的公开项目与可下载工具。">
+  <meta name="theme-color" content="#ffffff">
+  <title>项目组工具库 · EchoX</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f201d;
+      --muted: #636361;
+      --surface: #f4f7f7;
+      --accent: #1b6e66;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      color: var(--ink);
+      background: #fff;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-size: 16px; line-height: 1.7; }
+    a { color: inherit; text-underline-offset: 4px; }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
+    .frame { width: min(1100px, calc(100% - 48px)); margin-inline: auto; }
+    .skip { position: absolute; top: -100px; left: 24px; padding: 8px 16px; background: #fff; }
+    .skip:focus { top: 8px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-block: 28px; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; font-size: 20px; font-weight: 600; }
+    .brand svg { width: 28px; height: 28px; color: var(--accent); }
+    .repo-link { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; }
+    main { padding-top: 48px; }
+    .intro { margin-bottom: 32px; }
+    h1 { margin: 0 0 12px; font-size: 28px; line-height: 1.4; font-weight: 600; }
+    .intro p { margin: 0; max-width: 42em; color: var(--muted); }
+    /* 12-column grid: 12 tracks + 11 × 16px = 1100px. Both panels span 6 tracks. */
+    .catalogue { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+    .collection { grid-column: span 6; background: var(--surface); padding: 28px; border-radius: 22px; }
+    .collection-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    h2 { margin: 0; font-size: 18px; line-height: 1.5; font-weight: 600; }
+    .count { color: var(--muted); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .empty { margin-top: 28px; }
+    .empty p { margin: 0; }
+    .empty .detail { margin-top: 8px; color: var(--muted); font-size: 14px; }
+    .about { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding-block: 32px; }
+    .about h2 { margin-bottom: 8px; }
+    .about p { margin: 0; color: var(--muted); font-size: 14px; max-width: 44em; }
+    .button { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 9px 22px; background: var(--ink); color: #fff; border-radius: 999px; font-size: 14px; text-decoration: none; white-space: nowrap; transition: opacity .15s, transform .15s; }
+    .button:hover { opacity: .85; }
+    .button:active { transform: translateY(1px); }
+    footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-block: 28px; color: var(--muted); font-size: 14px; }
+    @media (max-width: 640px) {
+      .frame { width: calc(100% - 36px); }
+      header { padding-block: 18px; }
+      main { padding-top: 28px; }
+      h1 { font-size: 24px; }
+      .collection { grid-column: 1 / -1; padding: 24px; }
+      .about { grid-template-columns: 1fr; gap: 20px; }
+      .button { justify-self: start; }
+      footer { flex-direction: column; padding-top: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到主要内容</a>
+  <header class="frame">
+    <a class="brand" href="./" aria-label="EchoX 工具库首页">
+      <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M4 6h10M4 14h7M4 22h10M17 7l8 14M25 7l-8 14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <span>EchoX</span>
+    </a>
+    <a class="repo-link" href="https://github.com/echox-2026/team-toolbox">GitHub 仓库 ↗</a>
+  </header>
+  <main class="frame" id="content">
+    <div class="intro">
+      <h1>项目组工具库</h1>
+      <p>把成员的项目与实用工具，放在一个容易找到的地方。</p>
+    </div>
+    <div class="catalogue">
+      <section class="collection" aria-labelledby="projects-heading">
+        <div class="collection-heading">
+          <h2 id="projects-heading">项目展示</h2>
+          <span class="count">0 个项目</span>
+        </div>
+        <div class="empty">
+          <p>第一个项目，正在路上。</p>
+          <p class="detail">暂未收录项目。后续将在这里展示项目简介、封面和公开仓库入口。</p>
+        </div>
+      </section>
+      <section class="collection" aria-labelledby="tools-heading">
+        <div class="collection-heading">
+          <h2 id="tools-heading">工具下载</h2>
+          <span class="count">0 个工具</span>
+        </div>
+        <div class="empty">
+          <p>好用的工具，陆续收集。</p>
+          <p class="detail">暂未提供下载。工具收录后，将在这里提供版本说明与经过核对的下载入口。</p>
+        </div>
+      </section>
+    </div>
+    <section class="about" aria-labelledby="about-heading">
+      <div>
+        <h2 id="about-heading">从这里开始</h2>
+        <p>首页试运行中，项目与工具内容正在整理。成员投稿与审核功能将在后续开放。</p>
+      </div>
+      <a class="button" href="https://github.com/echox-2026/team-toolbox">查看网站仓库 <span aria-hidden="true">&nbsp;↗</span></a>
+    </section>
+  </main>
+  <footer class="frame">
+    <span>EchoX · 项目组工具库</span>
+    <span>公开浏览，无需登录 · GitHub Pages</span>
+  </footer>
+</body>
+</html>
