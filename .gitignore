@@ -1,4 +1,7 @@
 .taste-skill/
 node_modules/
+dist/
+dist-demo/
 .env
 .env.*
+ingest-note.md
