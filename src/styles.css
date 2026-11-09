@@ -286,7 +286,7 @@ h3 { font-size: 18px; font-weight: 600; line-height: 1.35; }
   .top-nav button:not(.top-search) { display: none; }
   .main { padding: 130px 16px 56px; }
   .stack { gap: 48px; }
-  .bar .seg-in em { display: none; }
+  .bar .seg-in em, .bar .seg-in svg { display: none; }
   .seg .lg { display: none; }
   .seg .sm { display: inline; }
   .seg button { padding: 9px 11px; font-size: 14px; }
