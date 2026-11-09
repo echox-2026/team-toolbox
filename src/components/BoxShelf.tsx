@@ -1,8 +1,8 @@
 import { ArrowUpRight, Check, Copy, Download, Plus } from "lucide-react";
 import { CSSProperties, useContext, useMemo, useState } from "react";
-import { Entry, hostOf, https, KINDS, Kind, PLATFORM_NAME, platformsOf, skillHref } from "../data/catalog";
+import { Entry, hostOf, https, KINDS, Kind, PLATFORM_NAME, platformsOf, apiHref } from "../data/catalog";
 import { bestAsset } from "./cards";
-import { AppIcon, Art } from "./primitives";
+import { AutoCover } from "./primitives";
 import { UploadCtx } from "./Upload";
 
 const COLUMNS = 6;
@@ -10,12 +10,7 @@ const UNSIGNED = "未署名";
 const TILTS = [-2.6, 2.2, -1.7, 2.8, -2.2, 1.8];
 
 function Face({ e }: { e: Entry }) {
-  if (e.kind === "app") return <div className="cart-art app-art"><AppIcon seed={e.id} title={e.title} /></div>;
-  if (e.kind === "plugin") {
-    return <div className="cart-art term-art"><b>$</b> {e.install || (e.skillFile ? "SKILL.md" : <span className="cursor" aria-hidden="true" />)}</div>;
-  }
-  if (e.kind === "blog") return <div className="cart-art blog-art"><span>{hostOf(e.url).replace(/^www\./, "")}</span></div>;
-  return <div className="cart-art"><Art seed={e.id} /></div>;
+  return <div className="cart-art">{e.cover ? <img src={apiHref(e.cover)} alt="" loading="lazy" /> : <AutoCover e={e} />}</div>;
 }
 
 function subtitle(e: Entry) {
@@ -28,7 +23,7 @@ function subtitle(e: Entry) {
 function FootAction({ e }: { e: Entry }) {
   const [copied, setCopied] = useState(false);
   if (e.kind === "plugin" && e.skillFile) {
-    return <a href={skillHref(e.skillFile)} download aria-label={`下载 ${e.title}`}><Download size={13} aria-hidden="true" />下载</a>;
+    return <a href={apiHref(e.skillFile)} download aria-label={`下载 ${e.title}`}><Download size={13} aria-hidden="true" />下载</a>;
   }
   if (e.kind === "plugin" && e.install) {
     return (
@@ -75,11 +70,15 @@ function Cartridge({ e, tilt, onOpen }: { e: Entry; tilt: number; onOpen: (id: s
   );
 }
 
-function Box({ owner, items, onOpen }: { owner: string; items: Entry[]; onOpen: (id: string) => void }) {
+function Box({ owner, items, kind, onOpen }: { owner: string; items: Entry[]; kind: Kind; onOpen: (id: string) => void }) {
+  const upload = useContext(UploadCtx);
+  const named = owner !== UNSIGNED;
   return (
     <section className="box" aria-label={owner}>
-      <div className={`box-row${items.length > COLUMNS ? " many" : ""}`}>
+      <div className={`box-row${items.length + 1 > COLUMNS ? " many" : ""}`}>
         {items.map((e, i) => <Cartridge key={e.id} e={e} tilt={TILTS[i % TILTS.length]} onOpen={onOpen} />)}
+        <button type="button" className="cart-slot" aria-label={named ? `以 ${owner} 的名义上传${KINDS[kind].label}` : `上传${KINDS[kind].label}`}
+          onClick={() => upload({ kind, uploader: named ? owner : undefined })}><Plus size={20} aria-hidden="true" /></button>
       </div>
       <div className="box-lip" aria-hidden="true"><span>{owner}</span><span>{items.length}</span></div>
     </section>
@@ -103,17 +102,21 @@ function EmptyBox({ kind }: { kind: Kind }) {
 /** 每位上传者一个盒子，最近有上传的人排在前面 */
 export function BoxShelf({ entries, kind, onOpen }: { entries: Entry[]; kind: Kind; onOpen: (id: string) => void }) {
   const boxes = useMemo(() => {
-    const byOwner = new Map<string, Entry[]>();
+    const byOwner = new Map<string, { owner: string; items: Entry[] }>();
     for (const e of entries) {
       const owner = e.author?.trim() || UNSIGNED;
-      byOwner.set(owner, [...(byOwner.get(owner) || []), e]);
+      const key = owner.normalize("NFKC").replace(/\s+/g, " ").toLowerCase();
+      const box = byOwner.get(key) || { owner, items: [] };
+      box.owner = owner;
+      box.items.push(e);
+      byOwner.set(key, box);
     }
-    return [...byOwner];
+    return [...byOwner.values()];
   }, [entries]);
 
   return (
     <div className="shelf">
-      {boxes.length === 0 ? <EmptyBox kind={kind} /> : boxes.map(([owner, items]) => <Box key={owner} owner={owner} items={items} onOpen={onOpen} />)}
+      {boxes.length === 0 ? <EmptyBox kind={kind} /> : boxes.map(({ owner, items }) => <Box key={owner} owner={owner} items={items} kind={kind} onOpen={onOpen} />)}
     </div>
   );
 }

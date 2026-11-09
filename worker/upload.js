@@ -1,6 +1,7 @@
 /* 上传后端（Cloudflare Worker + D1）：接收上传、自动补全信息、提供目录。 */
 const ORIGINS = new Set(["https://echox-2026.github.io"]);
-const MAX_BODY = 60000;
+const MAX_BODY = 400000;
+const MAX_COVER_BASE64 = 280000;
 const WINDOW_MS = 60000;
 const MAX_PER_WINDOW = 8;
 const MAX_PER_HOUR = 120;
@@ -125,13 +126,14 @@ async function pageTitle(url) {
 
 async function build(p, env) {
   if (!p || typeof p !== "object" || Array.isArray(p)) no("内容格式不对");
+  if (typeof p.summary === "string" && p.summary.length > 200) no("简介最多 200 个字");
+  const note = clean(p.summary, 200);
   if (p.kind === "blog") {
     const url = httpsUrl(p.url) || no("链接必须以 https 开头");
     if (!isPublicHost(new URL(url).host)) no("链接地址不对");
-    if (typeof p.summary === "string" && p.summary.length > 200) no("简介最多 200 个字");
     if (typeof p.uploader === "string" && p.uploader.length > 40) no("上传人最多 40 个字");
     const author = clean(p.uploader, 40);
-    return { key: url, entry: { kind: "blog", title: await pageTitle(url), summary: clean(p.summary, 200) || new URL(url).host, url, ...(author ? { author } : {}) } };
+    return { key: url, entry: { kind: "blog", title: await pageTitle(url), summary: note || new URL(url).host, url, ...(author ? { author } : {}) } };
   }
   if (!["workbench", "app", "plugin"].includes(p.kind)) no("内容类型不对");
   if (typeof p.uploader === "string" && p.uploader.length > 40) no("上传人最多 40 个字");
@@ -144,25 +146,39 @@ async function build(p, env) {
     const fm = /^---\n([\s\S]*?)\n---/.exec(text.replace(/\r\n/g, "\n"))?.[1] || "";
     const field = (k, max) => clean(new RegExp(`^${k}:\\s*["']?(.+?)["']?\\s*$`, "m").exec(fm)?.[1], max);
     const h1 = clean(/^#\s+(.+)$/m.exec(text)?.[1], 60);
-    return { key: `md:${text}`, skill: { name, text }, entry: { kind: "plugin", title: field("name", 60) || h1 || name.replace(/\.(md|markdown)$/i, ""), summary: field("description", 200) || name, host: "Skill", author: uploader } };
+    return { key: `md:${text}`, skill: { name, text }, entry: { kind: "plugin", title: field("name", 60) || h1 || name.replace(/\.(md|markdown)$/i, ""), summary: note || field("description", 200) || name, host: "Skill", author: uploader } };
   }
   const e = await fromRepo(env, p.kind, p.repoUrl);
-  return { key: e.repoUrl.toLowerCase(), entry: { ...e, author: uploader } };
+  return { key: e.repoUrl.toLowerCase(), entry: { ...e, ...(note ? { summary: note } : {}), author: uploader } };
+}
+
+/** 封面由浏览器压缩成 JPEG 后传来，这里核对文件头，只保存真正的 JPEG */
+function checkCover(v) {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v !== "string" || v.length > MAX_COVER_BASE64) no("封面图片太大");
+  let head;
+  try { head = atob(v.slice(0, 8)); atob(v); } catch { no("封面图片格式不对"); }
+  if (head.charCodeAt(0) !== 0xff || head.charCodeAt(1) !== 0xd8 || head.charCodeAt(2) !== 0xff) no("封面图片格式不对");
+  return v;
 }
 
 async function upload(env, payload) {
   const now = Date.now();
   const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM entries WHERE updated_at > ?").bind(now - 3600000).first("n");
   if (recent >= MAX_PER_HOUR) no("现在上传的人太多，稍后再试");
+  const cover = checkCover(payload?.cover);
   const { key, entry, skill } = await build(payload, env);
   const id = `e-${await shortHash(key)}`;
   const old = await env.DB.prepare("SELECT json FROM entries WHERE id = ?").bind(id).first("json");
-  const author = old ? JSON.parse(old).author : undefined;
-  const next = { id, ...entry, ...(author ? { author } : {}), ...(skill ? { skillFile: `skills/${id}.md` } : {}), updatedAt: new Date(now).toISOString().slice(0, 10) };
+  const previous = old ? JSON.parse(old) : {};
+  const author = previous.author;
+  const coverPath = cover ? `covers/${id}.jpg?v=${(await shortHash(cover)).slice(0, 8)}` : previous.cover;
+  const next = { id, ...entry, ...(author ? { author } : {}), ...(skill ? { skillFile: `skills/${id}.md` } : {}), ...(coverPath ? { cover: coverPath } : {}), updatedAt: new Date(now).toISOString().slice(0, 10) };
   const statements = [
     env.DB.prepare("INSERT INTO entries (id, kind, json, created_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at").bind(id, next.kind, JSON.stringify(next), now, now),
   ];
   if (skill) statements.push(env.DB.prepare("INSERT OR REPLACE INTO skills (id, name, text) VALUES (?, ?, ?)").bind(id, skill.name, skill.text));
+  if (cover) statements.push(env.DB.prepare("INSERT OR REPLACE INTO covers (id, data) VALUES (?, ?)").bind(id, cover));
   await env.DB.batch(statements);
   return next;
 }
@@ -187,6 +203,14 @@ export default {
       if (!row) return reply(404, { error: "文件不存在" });
       const safe = row.name.replace(/[^\w.-]/g, "_");
       return new Response(row.text, { headers: { "content-type": "text/markdown; charset=utf-8", "content-disposition": `attachment; filename="${safe}"`, "x-content-type-options": "nosniff", "cache-control": "public, max-age=60", "access-control-allow-origin": "*" } });
+    }
+
+    const coverPath = /^\/covers\/(e-[a-f0-9]{12})\.jpg$/.exec(pathname);
+    if (request.method === "GET" && coverPath) {
+      const data = await env.DB.prepare("SELECT data FROM covers WHERE id = ?").bind(coverPath[1]).first("data");
+      if (!data) return reply(404, { error: "封面不存在" });
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      return new Response(bytes, { headers: { "content-type": "image/jpeg", "x-content-type-options": "nosniff", "cache-control": "public, max-age=31536000, immutable" } });
     }
 
     if (request.method !== "POST" || pathname !== "/") return reply(404, { error: "地址不对" });

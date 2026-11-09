@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy } from "lucide-react";
-import { KeyboardEvent, ReactNode, useId, useRef, useState } from "react";
+import { CSSProperties, KeyboardEvent, ReactNode, useId, useRef, useState } from "react";
+import { Entry, hostOf } from "../data/catalog";
 
 function hash32(s: string, salt: number) {
   let x = 2166136261 ^ salt;
@@ -11,63 +12,57 @@ function hash32(s: string, salt: number) {
   return x >>> 0;
 }
 
-/** 按字符串生成确定的 SSH randomart 式封面，同一个编号永远得到同一张图 */
-function randomart(seed: string, ghost: boolean) {
-  const W = 33, H = 18;
-  const grid = new Array(W * H).fill(0);
-  let x = 16, y = 9;
-  for (let b = 0; b < 90; b++) {
-    const v = hash32(seed, b * 2654435);
-    for (let s = 0; s < 8; s += 2) {
-      const m = (v >>> s) & 3;
-      x = Math.max(0, Math.min(W - 1, x + (m & 1 ? 1 : -1)));
-      y = Math.max(0, Math.min(H - 1, y + (m & 2 ? 1 : -1)));
-      grid[y * W + x]++;
-    }
-  }
-  const dim = ghost ? "#88919c" : "#ffffff";
-  const hot = ghost ? "#5f6973" : "#a6f3df";
-  const dots: ReactNode[] = [];
-  for (let cy = 0; cy < H; cy++) {
-    for (let cx = 0; cx < W; cx++) {
-      const n = grid[cy * W + cx];
-      const isEnd = (cx === x && cy === y) || (cx === 16 && cy === 9);
-      dots.push(
-        <circle key={`${cx}-${cy}`} cx={cx * 5.15 + 2.6} cy={cy * 5.3 + 2.8}
-          r={isEnd ? 2.3 : n === 0 ? 0.32 : Math.min(2, 0.62 + n * 0.26)}
-          fill={n >= 4 || isEnd ? hot : dim} opacity={n === 0 ? 0.24 : 0.9} />,
-      );
-    }
-  }
-  return dots;
+const STOP = new Set(["echox", "the", "and", "for", "with", "from", "your", "this", "that", "tool", "tools", "app", "apps", "github", "示例", "演示", "数据", "一个", "一篇", "用来", "这个", "可以"]);
+
+function goodWord(w: string) {
+  const t = w.trim();
+  if (!t || STOP.has(t.toLowerCase()) || /^\d+$/.test(t)) return false;
+  if (/[一-鿿]/.test(t)) return t.length >= 2;
+  return t.length >= 3 || /^[A-Z]{2,}$/.test(t);
 }
 
-export function Art({ seed, ghost = false }: { seed: string; ghost?: boolean }) {
-  const gid = useId();
-  const angle = (hash32(seed, 91) % 90) + 20;
-  return (
-    <svg className="art" viewBox="0 0 170 95.6" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
-      {!ghost && (
-        <>
-          <defs>
-            <linearGradient id={gid} gradientTransform={`rotate(${angle} .5 .5)`}>
-              <stop offset="0" stopColor="#88919c" /><stop offset=".55" stopColor="#5f6973" /><stop offset="1" stopColor="#3a444c" />
-            </linearGradient>
-          </defs>
-          <rect width="170" height="95.6" fill={`url(#${gid})`} />
-        </>
-      )}
-      {randomart(seed, ghost)}
-    </svg>
-  );
+function wordsIn(text = ""): string[] {
+  const spaced = text.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[-_/\\.:|·,，。、]+/g, " ");
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const seg = new Intl.Segmenter("zh", { granularity: "word" });
+    return [...seg.segment(spaced)].filter((s) => s.isWordLike).map((s) => s.segment);
+  }
+  return spaced.split(/\s+/);
 }
 
-export function AppIcon({ seed, title }: { seed: string; title: string }) {
-  const a = (hash32(seed, 3) % 70) + 110;
-  const glyph = title.replace(/^示例[：:]/, "").trim().charAt(0).toUpperCase();
+/** 取最能代表条目的关键字：名称优先，博客的网页标题常常不准，所以简介优先 */
+export function keywordsOf(e: Entry): string[] {
+  const blogNote = e.kind === "blog" && e.summary !== hostOf(e.url) ? e.summary : "";
+  const sources = blogNote ? [blogNote, e.title] : [e.title, (e.tags || []).join(" "), e.summary];
+  const out: string[] = [];
+  for (const src of sources) {
+    for (const w of wordsIn(src)) {
+      if (goodWord(w) && !out.some((x) => x.toLowerCase() === w.toLowerCase())) out.push(w);
+      if (out.length === 3) return out;
+    }
+  }
+  return out.length ? out : [e.title.slice(0, 8)];
+}
+
+const COVER_TONES = [
+  ["#848e99", "#3f4a53"],
+  ["#5f6973", "#1f272c"],
+  ["#7f9b96", "#2f4145"],
+  ["#6c7884", "#2a3338"],
+  ["#4f7a72", "#232b30"],
+];
+
+/** 按关键字排版的封面，同一个条目永远得到同一张 */
+export function AutoCover({ e }: { e: Entry }) {
+  const [first, ...rest] = keywordsOf(e);
+  const word = /[一-鿿]/.test(first) ? first : first.toUpperCase();
+  const units = [...word].reduce((n, c) => n + (/[一-鿿]/.test(c) ? 1 : 0.68), 0);
+  const [from, to] = COVER_TONES[hash32(e.id, 5) % COVER_TONES.length];
+  const angle = (hash32(e.id, 91) % 70) + 115;
   return (
-    <div className="appicon" aria-hidden="true" style={{ background: `linear-gradient(${a}deg, #e8edf0 0%, #88919c 48%, #3f4a53 100%)` }}>
-      <span>{glyph}</span>
+    <div className="auto-cover" aria-hidden="true" style={{ background: `linear-gradient(${angle}deg, ${from}, ${to})` }}>
+      <div className="ac-word" style={{ "--u": units.toFixed(2) } as CSSProperties}><i>{word}</i><i>{word}</i>{word}</div>
+      {rest.length > 0 && <div className="ac-rest">{rest.join(" · ")}</div>}
     </div>
   );
 }

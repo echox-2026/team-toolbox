@@ -31,6 +31,8 @@ export interface Entry {
   install?: string;
   /** 直接上传的 Skill 文件，相对网站根目录 */
   skillFile?: string;
+  /** 封面图片，相对后端地址 */
+  cover?: string;
 }
 
 export const REPO = "https://github.com/echox-2026/team-toolbox";
@@ -71,11 +73,12 @@ export function githubRepo(v: string) {
 
 export const UPLOAD_API: string = import.meta.env.MODE === "production" ? "https://echox-upload.echox-2026.workers.dev" : "";
 
-/** Skill 文件存在后端，演示数据没有后端时保持相对路径 */
-export const skillHref = (f?: string) => (UPLOAD_API ? `${UPLOAD_API}/${f}` : f || "");
+/** Skill 文件和封面存在后端，演示数据没有后端时保持相对路径 */
+export const apiHref = (f?: string) => (UPLOAD_API ? `${UPLOAD_API}/${f}` : f || "");
 
 export function clean(list: unknown): Entry[] {
   if (!Array.isArray(list)) return [];
+  const validCover = (c?: string) => !c || /^covers\/e-[a-z0-9]{12}\.jpg\?v=[a-f0-9]{8}$/.test(c);
   return (list as Entry[])
     .filter(
       (e) =>
@@ -84,6 +87,7 @@ export function clean(list: unknown): Entry[] {
         !!KINDS[e.kind] &&
         !!e.title &&
         !!e.summary &&
+        validCover(e.cover) &&
         (e.kind === "blog" ? !!https(e.url) : !!https(e.repoUrl) || validSkillFile(e.skillFile)),
     )
     .map((e) => ({ ...e, assets: (e.assets || []).filter((a) => https(a.url) && PLATFORM_NAME[a.platform]) }));

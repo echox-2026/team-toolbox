@@ -1,9 +1,9 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, X } from "lucide-react";
-import { Entry, hostOf, https, KINDS, PLATFORM_NAME, platformsOf, skillHref } from "../data/catalog";
+import { Entry, hostOf, https, KINDS, PLATFORM_NAME, platformsOf, apiHref } from "../data/catalog";
 import { DownloadButton, Ext } from "./cards";
-import { AppIcon, Art, CopyCommand } from "./primitives";
+import { AutoCover, CopyCommand } from "./primitives";
 
 function Fact({ k, v }: { k: string; v?: string }) {
   return v ? <div><dt>{k}</dt><dd>{v}</dd></div> : null;
@@ -29,9 +29,7 @@ export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: E
                   </div>
                 ) : (
                   <>
-                    {entry.kind === "app"
-                      ? <div className="sheet-icon"><AppIcon seed={entry.id} title={entry.title} /></div>
-                      : <div className="sheet-cover"><Art seed={entry.id} /></div>}
+                    <div className="sheet-cover">{entry.cover ? <img src={apiHref(entry.cover)} alt={`${entry.title} 的封面`} /> : <AutoCover e={entry} />}</div>
                     <div className="sheet-body">
                       <span className="sheet-kind">{KINDS[entry.kind].label}</span>
                       <Dialog.Title>{entry.title}</Dialog.Title>
@@ -39,7 +37,7 @@ export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: E
                       <div className="acts">
                         {(entry.kind === "workbench" || entry.kind === "blog") && url && <Ext href={url} primary>打开 {hostOf(url)} <ArrowUpRight size={15} aria-hidden="true" /></Ext>}
                         {entry.kind === "app" && <DownloadButton e={entry} />}
-                        {entry.skillFile && <a className="btn primary" href={skillHref(entry.skillFile)} download>下载 md</a>}
+                        {entry.skillFile && <a className="btn primary" href={apiHref(entry.skillFile)} download>下载 md</a>}
                         {entry.repoUrl && <Ext href={entry.repoUrl}>查看仓库 <ArrowUpRight size={15} aria-hidden="true" /></Ext>}
                       </div>
                       {entry.install && <><h3>安装</h3><CopyCommand text={entry.install} /></>}

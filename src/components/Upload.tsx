@@ -1,14 +1,38 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
-import { FileText, X } from "lucide-react";
+import { FileText, ImagePlus, X } from "lucide-react";
 import { createContext, DragEvent, useEffect, useRef, useState } from "react";
 import { githubRepo, https, KINDS, Kind, UPLOAD_API } from "../data/catalog";
 import { Segmented } from "./primitives";
 
-export interface UploadRequest { kind?: Kind }
+export interface UploadRequest { kind?: Kind; uploader?: string }
 export const UploadCtx = createContext<(r?: UploadRequest) => void>(() => {});
 
 const MD_LIMIT = 40 * 1024;
+const COVER_W = 640;
+const COVER_H = 440;
+const COVER_MAX = 270000;
+
+/** 居中裁剪并压缩成统一尺寸的 JPEG，原图不离开浏览器 */
+async function compressCover(file: File) {
+  const bmp = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = COVER_W;
+  canvas.height = COVER_H;
+  const c = canvas.getContext("2d")!;
+  c.fillStyle = "#fff";
+  c.fillRect(0, 0, COVER_W, COVER_H);
+  const scale = Math.max(COVER_W / bmp.width, COVER_H / bmp.height);
+  const w = bmp.width * scale, h = bmp.height * scale;
+  c.drawImage(bmp, (COVER_W - w) / 2, (COVER_H - h) / 2, w, h);
+  bmp.close();
+  for (const q of [0.84, 0.7, 0.55, 0.4]) {
+    const url = canvas.toDataURL("image/jpeg", q);
+    const base64 = url.slice(url.indexOf(",") + 1);
+    if (base64.length <= COVER_MAX) return { url, base64 };
+  }
+  throw new Error("too large");
+}
 type Phase = "idle" | "sending" | "done";
 
 export function UploadDialog({ open, request, onClose, onDone }: { open: boolean; request?: UploadRequest; onClose: () => void; onDone: () => void }) {
@@ -24,12 +48,16 @@ export function UploadDialog({ open, request, onClose, onDone }: { open: boolean
   const [phase, setPhase] = useState<Phase>("idle");
   const [failure, setFailure] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
+  const [cover, setCover] = useState<{ url: string; base64: string } | null>(null);
+  const [coverError, setCoverError] = useState("");
+  const [coverOver, setCoverOver] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setKind(request?.kind || "workbench");
-    setUploader(""); setRepo(""); setLink(""); setNote(""); setMd(null); setMdError("");
-    setTried(false); setPhase("idle"); setFailure("");
+    setUploader(request?.uploader || ""); setRepo(""); setLink(""); setNote(""); setMd(null); setMdError("");
+    setTried(false); setPhase("idle"); setFailure(""); setCover(null); setCoverError("");
   }, [open, request]);
 
   const isBlog = kind === "blog";
@@ -39,13 +67,13 @@ export function UploadDialog({ open, request, onClose, onDone }: { open: boolean
   const errors: Record<string, string> = {};
   if (isBlog) {
     if (!https(link.trim())) errors.link = "需要 https 开头的完整链接";
-    if (note.length > 200) errors.note = "最多 200 个字";
     if (uploader.trim().length > 40) errors.uploader = "最多 40 个字";
   } else {
     if (!uploader.trim()) errors.uploader = "必填";
     else if (uploader.trim().length > 40) errors.uploader = "最多 40 个字";
     if (!useMd && !githubRepo(repo.trim())) errors.repo = isPlugin ? "填写 GitHub 仓库链接，或拖入 md 文件" : "需要 GitHub 仓库链接";
   }
+  if (note.length > 200) errors.note = "最多 200 个字";
   const show = (k: string) => (tried ? errors[k] : undefined);
 
   async function readFile(file?: File | null) {
@@ -61,14 +89,22 @@ export function UploadDialog({ open, request, onClose, onDone }: { open: boolean
     readFile(e.dataTransfer.files[0]);
   }
 
+  async function readCover(file?: File | null) {
+    setCoverError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.type === "image/svg+xml") { setCoverError("只支持图片文件"); return; }
+    if (file.size > 15 * 1024 * 1024) { setCoverError("图片不能超过 15 MB"); return; }
+    try { setCover(await compressCover(file)); } catch { setCoverError("这张图片读取失败，换一张试试"); }
+  }
+
   async function submit() {
     setTried(true);
     setFailure("");
     if (Object.keys(errors).length) return;
     if (!UPLOAD_API) { setFailure("上传服务还没有连接"); return; }
     const payload = isBlog
-      ? { kind, url: link.trim(), uploader: uploader.trim() || undefined, summary: note.trim() || undefined }
-      : { kind, uploader: uploader.trim(), repoUrl: useMd ? undefined : repo.trim(), skill: useMd ? md : undefined };
+      ? { kind, url: link.trim(), uploader: uploader.trim() || undefined, summary: note.trim() || undefined, cover: cover?.base64 }
+      : { kind, uploader: uploader.trim(), summary: note.trim() || undefined, cover: cover?.base64, repoUrl: useMd ? undefined : repo.trim(), skill: useMd ? md : undefined };
     setPhase("sending");
     try {
       const r = await fetch(UPLOAD_API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -152,8 +188,29 @@ export function UploadDialog({ open, request, onClose, onDone }: { open: boolean
                             )
                           )}
                           {mdError && <span className="field-err">{mdError}</span>}
+                          <div className="field">
+                            <label htmlFor="up-note">简介（可选）</label>
+                            <textarea id="up-note" rows={3} value={note} aria-invalid={Boolean(show("note"))} onChange={(e) => setNote(e.target.value)} />
+                            {show("note") && <span className="field-err">{show("note")}</span>}
+                          </div>
                         </>
                       )}
+                      <div className="field">
+                        <span className="field-label">封面（可选）</span>
+                        {cover ? (
+                          <div className="cover-preview"><img src={cover.url} alt="封面预览" /><button type="button" aria-label="移除封面" onClick={() => setCover(null)}><X size={15} /></button></div>
+                        ) : (
+                          <div className={`drop drop-cover${coverOver ? " over" : ""}`} role="button" tabIndex={0} aria-label="选择封面图片"
+                            onClick={() => coverInput.current?.click()}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); coverInput.current?.click(); } }}
+                            onDragOver={(e) => { e.preventDefault(); setCoverOver(true); }} onDragLeave={() => setCoverOver(false)}
+                            onDrop={(e) => { e.preventDefault(); setCoverOver(false); readCover(e.dataTransfer.files[0]); }}>
+                            <ImagePlus size={18} aria-hidden="true" /><span>拖入或选择图片</span>
+                            <input ref={coverInput} type="file" accept="image/*" hidden onChange={(e) => readCover(e.target.files?.[0])} />
+                          </div>
+                        )}
+                        {coverError && <span className="field-err">{coverError}</span>}
+                      </div>
                     </div>
                     <div className="upload-foot">
                       {failure && <span className="field-err">{failure}</span>}
