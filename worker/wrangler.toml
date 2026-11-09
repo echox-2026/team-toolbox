@@ -1,0 +1,8 @@
+name = "echox-upload"
+main = "upload.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "echox-catalog"
+database_id = "35d1dd1b-fa26-4312-aab0-d6dc94a91c2d"

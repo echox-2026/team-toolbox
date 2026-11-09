@@ -1,9 +1,9 @@
 import { motion } from "motion/react";
-import { AppWindow, LayoutDashboard, Puzzle } from "lucide-react";
+import { AppWindow, LayoutDashboard, Newspaper, Puzzle } from "lucide-react";
 import { PointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ALL_PLATFORMS, KINDS, Kind, PLATFORM_NAME } from "../data/catalog";
 
-const ICON = { workbench: LayoutDashboard, app: AppWindow, plugin: Puzzle };
+const ICON = { workbench: LayoutDashboard, app: AppWindow, plugin: Puzzle, blog: Newspaper };
 const RAIL = 66;
 const GAP = 14;
 const RADIUS = 26;
@@ -54,7 +54,10 @@ function MiniOS() {
 function MiniTerm() {
   return <span className="gd-term" aria-hidden="true"><b>$</b><span className="cursor" /></span>;
 }
-const MINI = { workbench: MiniChart, app: MiniOS, plugin: MiniTerm };
+function MiniBlog() {
+  return <span className="gd-lines" aria-hidden="true"><i /><i /><i /></span>;
+}
+const MINI = { workbench: MiniChart, app: MiniOS, plugin: MiniTerm, blog: MiniBlog };
 
 export function GlassDrawer({ counts, onJump }: { counts: Record<Kind, number>; onJump: (k: Kind) => void }) {
   const panel = useRef<HTMLDivElement>(null);

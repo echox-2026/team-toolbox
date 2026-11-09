@@ -1,22 +1,15 @@
 import { AnimatePresence, motion } from "motion/react";
-import { AppWindow, LayoutDashboard, Plus, Puzzle, Search } from "lucide-react";
+import { AppWindow, LayoutDashboard, Newspaper, Plus, Puzzle, Search } from "lucide-react";
 import { useContext, useEffect, useMemo, useState } from "react";
-import { UploadCtx } from "./Upload";
 import { ALL_PLATFORMS, Entry, KINDS, Kind, PLATFORM_NAME, Platform, platformsOf } from "../data/catalog";
-import { AppCard, PluginCard, WorkbenchCard } from "./cards";
-import { EmptyFor } from "./Empty";
+import type { LoadStatus } from "../App";
+import { BoxShelf } from "./BoxShelf";
 import { Segmented } from "./primitives";
+import { UploadCtx } from "./Upload";
 
-const ICON = { workbench: LayoutDashboard, app: AppWindow, plugin: Puzzle };
+const ICON = { workbench: LayoutDashboard, app: AppWindow, plugin: Puzzle, blog: Newspaper };
 
-/** 三列网格里让部分卡片占两列，保证每一行都排满 */
-function isFeatured(i: number, n: number) {
-  if (n % 3 === 2) return i === 0;
-  if (n % 3 === 1 && n >= 4) return i === 0 || i === 3;
-  return false;
-}
-
-export function Catalog({ entries, kind, setKind, onOpen, onSearch, counts }: { entries: Entry[]; kind: Kind; setKind: (k: Kind) => void; onOpen: (id: string) => void; onSearch: () => void; counts: Record<Kind, number> }) {
+export function Catalog({ entries, kind, setKind, onOpen, onSearch, counts, status }: { entries: Entry[]; kind: Kind; setKind: (k: Kind) => void; onOpen: (id: string) => void; onSearch: () => void; counts: Record<Kind, number>; status: LoadStatus }) {
   const upload = useContext(UploadCtx);
   const [platform, setPlatform] = useState<"all" | Platform>("all");
   const [host, setHost] = useState("");
@@ -26,9 +19,9 @@ export function Catalog({ entries, kind, setKind, onOpen, onSearch, counts }: { 
   const inKind = useMemo(() => entries.filter((e) => e.kind === kind), [entries, kind]);
   const hosts = useMemo(() => [...new Set(inKind.map((e) => e.host).filter(Boolean) as string[])], [inKind]);
   const tags = useMemo(() => [...new Set(inKind.flatMap((e) => e.tags || []))], [inKind]);
-  const shown = inKind.filter((e) =>
+  const shown = useMemo(() => inKind.filter((e) =>
     (platform === "all" || platformsOf(e).includes(platform)) && (!host || e.host === host) && (!tag || (e.tags || []).includes(tag)),
-  );
+  ), [inKind, platform, host, tag]);
 
   const segItems = (Object.keys(KINDS) as Kind[]).map((k) => {
     const I = ICON[k];
@@ -69,20 +62,14 @@ export function Catalog({ entries, kind, setKind, onOpen, onSearch, counts }: { 
 
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={kind} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-          {inKind.length === 0 ? (
-            <EmptyFor kind={kind} />
-          ) : shown.length === 0 ? (
+          {status === "loading" ? (
+            <div className="box box-wait" aria-busy="true" />
+          ) : status === "failed" ? (
+            <div className="none"><p>目录读取失败，刷新页面再试一次。</p></div>
+          ) : inKind.length > 0 && shown.length === 0 ? (
             <div className="none"><p>没有符合条件的条目。</p><button type="button" className="btn" onClick={() => { setPlatform("all"); setHost(""); setTag(""); }}>清除筛选</button></div>
           ) : (
-            <div className={kind === "workbench" ? "grid-wb" : kind === "app" ? "grid-app" : "grid-plug"}>
-              <AnimatePresence mode="popLayout" initial={false}>
-                {shown.map((e, i) =>
-                  kind === "workbench" ? <WorkbenchCard key={e.id} e={e} onOpen={onOpen} featured={isFeatured(i, shown.length)} />
-                    : kind === "app" ? <AppCard key={e.id} e={e} onOpen={onOpen} />
-                    : <PluginCard key={e.id} e={e} onOpen={onOpen} />,
-                )}
-              </AnimatePresence>
-            </div>
+            <BoxShelf entries={shown} kind={kind} onOpen={onOpen} />
           )}
         </motion.div>
       </AnimatePresence>

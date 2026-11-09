@@ -1,18 +1,15 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, X } from "lucide-react";
-import { useContext } from "react";
-import { Entry, hostOf, https, KINDS, PLATFORM_NAME, platformsOf } from "../data/catalog";
+import { Entry, hostOf, https, KINDS, PLATFORM_NAME, platformsOf, skillHref } from "../data/catalog";
 import { DownloadButton, Ext } from "./cards";
 import { AppIcon, Art, CopyCommand } from "./primitives";
-import { UploadCtx } from "./Upload";
 
 function Fact({ k, v }: { k: string; v?: string }) {
   return v ? <div><dt>{k}</dt><dd>{v}</dd></div> : null;
 }
 
 export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: Entry; onClose: () => void }) {
-  const upload = useContext(UploadCtx);
   const plats = entry ? platformsOf(entry).map((p) => PLATFORM_NAME[p]).join("、") : "";
   const url = https(entry?.url);
   return (
@@ -40,9 +37,10 @@ export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: E
                       <Dialog.Title>{entry.title}</Dialog.Title>
                       <p className="sheet-text">{entry.description || entry.summary}</p>
                       <div className="acts">
-                        {entry.kind === "workbench" && url && <Ext href={url} primary>打开 {hostOf(url)} <ArrowUpRight size={15} aria-hidden="true" /></Ext>}
+                        {(entry.kind === "workbench" || entry.kind === "blog") && url && <Ext href={url} primary>打开 {hostOf(url)} <ArrowUpRight size={15} aria-hidden="true" /></Ext>}
                         {entry.kind === "app" && <DownloadButton e={entry} />}
-                        <Ext href={entry.repoUrl}>查看仓库 <ArrowUpRight size={15} aria-hidden="true" /></Ext>
+                        {entry.skillFile && <a className="btn primary" href={skillHref(entry.skillFile)} download>下载 md</a>}
+                        {entry.repoUrl && <Ext href={entry.repoUrl}>查看仓库 <ArrowUpRight size={15} aria-hidden="true" /></Ext>}
                       </div>
                       {entry.install && <><h3>安装</h3><CopyCommand text={entry.install} /></>}
                       {(entry.assets || []).length > 0 && (
@@ -60,14 +58,13 @@ export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: E
                         </>
                       )}
                       <dl className="facts">
-                        <Fact k="作者" v={entry.author} />
+                        <Fact k="上传人" v={entry.author} />
                         <Fact k="版本" v={entry.version} />
                         <Fact k="适用系统" v={plats} />
                         <Fact k="运行环境" v={entry.host} />
                         <Fact k="更新时间" v={entry.updatedAt} />
                       </dl>
                       {entry.tags?.length ? <div className="tags">{entry.tags.map((t) => <span key={t}>{t}</span>)}</div> : null}
-                      <button type="button" className="quiet" onClick={() => { const e = entry; onClose(); upload({ entry: e }); }}>更新</button>
                     </div>
                   </>
                 )}

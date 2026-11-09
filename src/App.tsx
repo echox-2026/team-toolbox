@@ -4,12 +4,16 @@ import { DetailSheet } from "./components/DetailSheet";
 import { Palette } from "./components/Palette";
 import { Footer } from "./components/Steps";
 import { UploadCtx, UploadDialog, UploadRequest } from "./components/Upload";
-import { clean, DEMO, Kind, REAL } from "./data/catalog";
+import { clean, DEMO, Entry, Kind, UPLOAD_API } from "./data/catalog";
 import { Hero } from "./hero/Hero";
+
+export type LoadStatus = "loading" | "ready" | "failed";
 
 export default function App() {
   const [demoOn, setDemoOn] = useState(Boolean(DEMO));
-  const entries = useMemo(() => (demoOn && DEMO ? DEMO : clean(REAL)), [demoOn]);
+  const [remote, setRemote] = useState<Entry[]>([]);
+  const [status, setStatus] = useState<LoadStatus>(UPLOAD_API ? "loading" : "ready");
+  const entries = useMemo(() => (demoOn && DEMO ? DEMO : remote), [demoOn, remote]);
   const [kind, setKind] = useState<Kind>("workbench");
   const [palette, setPalette] = useState(false);
   const [hash, setHash] = useState(location.hash);
@@ -17,6 +21,19 @@ export default function App() {
   const [uploadReq, setUploadReq] = useState<UploadRequest | undefined>();
 
   const openUpload = useCallback((r?: UploadRequest) => { setUploadReq(r); setUploadOpen(true); }, []);
+
+  const reload = useCallback(async () => {
+    if (!UPLOAD_API) return;
+    try {
+      const r = await fetch(`${UPLOAD_API}/entries`, { cache: "no-store" });
+      if (!r.ok) throw new Error(String(r.status));
+      setRemote(clean((await r.json()).entries));
+      setStatus("ready");
+    } catch {
+      setStatus((s) => (s === "ready" ? s : "failed"));
+    }
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
     const onHash = () => setHash(location.hash);
@@ -40,7 +57,7 @@ export default function App() {
   useEffect(() => { if (detail) setKind(detail.kind); }, [detail]);
 
   const counts = useMemo(() => {
-    const c: Record<Kind, number> = { workbench: 0, app: 0, plugin: 0 };
+    const c: Record<Kind, number> = { workbench: 0, app: 0, plugin: 0, blog: 0 };
     entries.forEach((e) => c[e.kind]++);
     return c;
   }, [entries]);
@@ -67,13 +84,13 @@ export default function App() {
               <button type="button" className="btn" onClick={() => setDemoOn(!demoOn)}>{demoOn ? "查看空状态" : "查看演示数据"}</button>
             </div>
           )}
-          <Catalog entries={entries} kind={kind} setKind={setKind} onOpen={openItem} onSearch={() => setPalette(true)} counts={counts} />
+          <Catalog entries={entries} kind={kind} setKind={setKind} onOpen={openItem} onSearch={() => setPalette(true)} counts={counts} status={demoOn ? "ready" : status} />
         </div>
       </main>
       <Footer />
       <Palette open={palette} onOpenChange={setPalette} entries={entries} onPick={openItem} onJump={jump} onUpload={() => openUpload({ kind })} />
-      <DetailSheet open={Boolean(detailId)} entry={detail} onClose={closeItem} />
-      <UploadDialog open={uploadOpen} request={uploadReq} onClose={() => setUploadOpen(false)} />
+      <DetailSheet open={Boolean(detailId) && (demoOn || status !== "loading")} entry={detail} onClose={closeItem} />
+      <UploadDialog open={uploadOpen} request={uploadReq} onClose={() => setUploadOpen(false)} onDone={reload} />
     </UploadCtx.Provider>
   );
 }

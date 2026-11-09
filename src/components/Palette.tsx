@@ -1,8 +1,8 @@
 import { Command } from "cmdk";
-import { AppWindow, LayoutDashboard, Plus, Puzzle } from "lucide-react";
+import { AppWindow, LayoutDashboard, Newspaper, Plus, Puzzle } from "lucide-react";
 import { Entry, KINDS, Kind } from "../data/catalog";
 
-const ICON = { workbench: LayoutDashboard, app: AppWindow, plugin: Puzzle };
+const ICON = { workbench: LayoutDashboard, app: AppWindow, plugin: Puzzle, blog: Newspaper };
 
 export function Palette({ open, onOpenChange, entries, onPick, onJump, onUpload }: { open: boolean; onOpenChange: (o: boolean) => void; entries: Entry[]; onPick: (id: string) => void; onJump: (k: Kind) => void; onUpload: () => void }) {
   const kinds = Object.keys(KINDS) as Kind[];

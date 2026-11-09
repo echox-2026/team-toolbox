@@ -1,6 +1,6 @@
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy } from "lucide-react";
-import { KeyboardEvent, PointerEvent, ReactNode, useId, useRef, useState } from "react";
+import { KeyboardEvent, ReactNode, useId, useRef, useState } from "react";
 
 function hash32(s: string, salt: number) {
   let x = 2166136261 ^ salt;
@@ -70,34 +70,6 @@ export function AppIcon({ seed, title }: { seed: string; title: string }) {
       <span>{glyph}</span>
     </div>
   );
-}
-
-/** 鼠标位置驱动的薄荷色边框高光 */
-export function trackSpot(e: PointerEvent<HTMLElement>) {
-  const el = e.currentTarget;
-  const b = el.getBoundingClientRect();
-  el.style.setProperty("--mx", `${e.clientX - b.left}px`);
-  el.style.setProperty("--my", `${e.clientY - b.top}px`);
-}
-
-export function useTilt(max = 5) {
-  const reduce = useReducedMotion();
-  const rx = useSpring(useMotionValue(0), { stiffness: 220, damping: 22 });
-  const ry = useSpring(useMotionValue(0), { stiffness: 220, damping: 22 });
-  return {
-    style: reduce ? {} : { rotateX: rx, rotateY: ry, transformPerspective: 1100 },
-    onPointerMove(e: PointerEvent<HTMLElement>) {
-      trackSpot(e);
-      if (reduce || e.pointerType === "touch") return;
-      const b = e.currentTarget.getBoundingClientRect();
-      ry.set(((e.clientX - b.left) / b.width - 0.5) * max * 2);
-      rx.set(-((e.clientY - b.top) / b.height - 0.5) * max * 2);
-    },
-    onPointerLeave() {
-      rx.set(0);
-      ry.set(0);
-    },
-  };
 }
 
 export interface SegItem<T extends string> { value: T; label: ReactNode; count?: number }
