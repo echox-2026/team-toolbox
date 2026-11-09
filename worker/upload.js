@@ -9,7 +9,7 @@ const hits = new Map();
 
 function cors(origin) {
   return ORIGINS.has(origin)
-    ? { "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type", vary: "origin" }
+    ? { "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST, DELETE, OPTIONS", "access-control-allow-headers": "content-type", vary: "origin" }
     : { vary: "origin" };
 }
 
@@ -211,6 +211,21 @@ export default {
       if (!data) return reply(404, { error: "封面不存在" });
       const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
       return new Response(bytes, { headers: { "content-type": "image/jpeg", "x-content-type-options": "nosniff", "cache-control": "public, max-age=31536000, immutable" } });
+    }
+
+    const removal = /^\/entries\/(e-[a-f0-9]{12})$/.exec(pathname);
+    if (request.method === "DELETE" && removal) {
+      if (!ORIGINS.has(origin)) return reply(403, { error: "来源不对" });
+      if (limited(request.headers.get("cf-connecting-ip") || "unknown", Date.now())) return reply(429, { error: "太频繁了，稍后再试" });
+      const id = removal[1];
+      const exists = await env.DB.prepare("SELECT id FROM entries WHERE id = ?").bind(id).first("id");
+      if (!exists) return reply(404, { error: "这个条目已经不存在" });
+      /* 移进回收表而不是真删：任何人都能删除，误删或恶意删除时还能恢复 */
+      await env.DB.batch([
+        env.DB.prepare("INSERT OR REPLACE INTO trash (id, kind, json, deleted_at) SELECT id, kind, json, ? FROM entries WHERE id = ?").bind(Date.now(), id),
+        env.DB.prepare("DELETE FROM entries WHERE id = ?").bind(id),
+      ]);
+      return reply(200, { ok: true });
     }
 
     if (request.method !== "POST" || pathname !== "/") return reply(404, { error: "地址不对" });

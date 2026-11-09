@@ -89,7 +89,7 @@ export default function App() {
       </main>
       <Footer />
       <Palette open={palette} onOpenChange={setPalette} entries={entries} onPick={openItem} onJump={jump} onUpload={() => openUpload({ kind })} />
-      <DetailSheet open={Boolean(detailId) && (demoOn || status !== "loading")} entry={detail} onClose={closeItem} />
+      <DetailSheet open={Boolean(detailId) && (demoOn || status !== "loading")} entry={detail} onClose={closeItem} onDeleted={() => { closeItem(); reload(); }} />
       <UploadDialog open={uploadOpen} request={uploadReq} onClose={() => setUploadOpen(false)} onDone={reload} />
     </UploadCtx.Provider>
   );

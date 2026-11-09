@@ -1,7 +1,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, X } from "lucide-react";
-import { Entry, hostOf, https, KINDS, PLATFORM_NAME, platformsOf, apiHref } from "../data/catalog";
+import { useState } from "react";
+import { Entry, hostOf, https, KINDS, PLATFORM_NAME, platformsOf, apiHref, UPLOAD_API } from "../data/catalog";
 import { DownloadButton, Ext } from "./cards";
 import { AutoCover, CopyCommand } from "./primitives";
 
@@ -9,7 +10,36 @@ function Fact({ k, v }: { k: string; v?: string }) {
   return v ? <div><dt>{k}</dt><dd>{v}</dd></div> : null;
 }
 
-export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: Entry; onClose: () => void }) {
+function DeleteControl({ id, onDeleted }: { id: string; onDeleted: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function remove() {
+    setError("");
+    if (!UPLOAD_API) { setError("上传服务还没有连接"); return; }
+    setBusy(true);
+    try {
+      const r = await fetch(`${UPLOAD_API}/entries/${id}`, { method: "DELETE" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok && r.status !== 404) throw new Error(data.error || "删除失败，稍后再试");
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof TypeError ? "网络连接失败，稍后再试" : (err as Error).message);
+      setBusy(false);
+    }
+  }
+  if (!asking) return <button type="button" className="del-link" onClick={() => setAsking(true)}>删除</button>;
+  return (
+    <div className="del-row" role="group" aria-label="确认删除">
+      <span>确定删除？</span>
+      <button type="button" className="btn del-yes" disabled={busy} onClick={remove}>{busy ? "删除中" : "删除"}</button>
+      <button type="button" className="btn ghost" disabled={busy} onClick={() => { setAsking(false); setError(""); }}>取消</button>
+      {error && <span className="field-err">{error}</span>}
+    </div>
+  );
+}
+
+export function DetailSheet({ open, entry, onClose, onDeleted }: { open: boolean; entry?: Entry; onClose: () => void; onDeleted: () => void }) {
   const plats = entry ? platformsOf(entry).map((p) => PLATFORM_NAME[p]).join("、") : "";
   const url = https(entry?.url);
   return (
@@ -63,6 +93,7 @@ export function DetailSheet({ open, entry, onClose }: { open: boolean; entry?: E
                         <Fact k="更新时间" v={entry.updatedAt} />
                       </dl>
                       {entry.tags?.length ? <div className="tags">{entry.tags.map((t) => <span key={t}>{t}</span>)}</div> : null}
+                      <DeleteControl key={entry.id} id={entry.id} onDeleted={onDeleted} />
                     </div>
                   </>
                 )}
